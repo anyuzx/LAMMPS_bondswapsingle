@@ -1,0 +1,1 @@
+This custom `fix` is modified based on the `fix bond/swap`. The original fix is used to swap the bonds between two single chain, accelarating the equilibrium of polymer melt. This custom `fix` is used to swap the bonds within the single chain in such a way that the chain remain intact without breaking into parts. This `fix` must be used with `newton` flag set be `off`.
