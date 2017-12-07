@@ -20,7 +20,6 @@ FixStyle(bond/swap/single,FixBondSwapSingle)
 #ifndef LMP_FIX_BONDSWAPSINGLE_H
 #define LMP_FIX_BONDSWAPSINGLE_H
 
-//#include <list.h>
 #include "fix.h"
 #include "pair.h"
 
@@ -57,7 +56,6 @@ class FixBondSwapSingle : public Fix {
   double pair_eng(int, int);
   double bond_eng(int, int, int);
   double angle_eng(int, int, int, int);
-  //int check_order(int, int, int, int);
 };
 
 }

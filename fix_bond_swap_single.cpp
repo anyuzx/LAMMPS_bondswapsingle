@@ -215,6 +215,8 @@ void FixBondSwapSingle::post_integrate()
   tagint i1,i2,i3,j1,j2,j3;
   int *ilist,*jlist,*numneigh,**firstneigh;
   double delta,factor;
+
+  //modification
   int checkpoints, edge, reached;
   tagint node, localnode, tag_tmp;
 
@@ -318,15 +320,15 @@ void FixBondSwapSingle::post_integrate()
           jbondtype = bond_type[j][jbond];
 
           if (molecule[inext] != molecule[jnext]) continue;
+          if (inext == jnext || inext == j || jnext == i) continue;
+
           // check the order of i,inext,j,jnext is approciate
-          // need work
-          // after the first swapping, the order of index is changed
-          // this criteria doesn't work anymore
-          // figure out how to work around
-          // one idea: use a list keeping tracking the order of index (global tag) of the chain
-          //if (i < inext && jnext < j) continue;
-          //if (i > inext && jnext > j) continue;
-          // pesudo code
+          // use the iterative DFS algorithm to find the path between i and j
+          // check whether inext, jnext are in the between
+          // if they are not or both of them are
+          // then the swap attempt is skipped
+          // only when one of inext and jnext in the between
+          // attemp the swap
 
           bool *visited = new bool[atom->natoms];
           for (ii = 0; ii < atom->natoms; ii++)
@@ -349,8 +351,6 @@ void FixBondSwapSingle::post_integrate()
             visited[jtag - 1] = true;
             stack.push(jtag);
           }
-          //visited[itag - 1] = true;
-          //stack.push(itag);
 
           checkpoints = 0;
           reached = 0;
@@ -358,14 +358,11 @@ void FixBondSwapSingle::post_integrate()
           {
             node = stack.top();
             localnode = atom->map(node);
-            //std::cout << "node: " << node << ", localnode: " << localnode << std::endl;
             stack.pop();
 
             if (!visited[node - 1])
             {
               visited[node - 1] = true;
-              //localnode = atom->map(node);
-              //std::cout << node << " ";
               if (node == inexttag || node == jnexttag) checkpoints += 1;
               if (itag < jtag)
               {
@@ -398,24 +395,16 @@ void FixBondSwapSingle::post_integrate()
             if (edge == 0)
             {
               checkpoints = 0;
-              //std::cout << "reach to the end" << std::endl;
             }
           }
-          //std::cout << std::endl;
-          //std::cout << "checkpoints: " << checkpoints << ", reached: " << reached << std::endl;
-          //std::cout << "i: " << itag << ", inext: " << inexttag << ", j: " << jtag << ", jnext: " << jnexttag << std::endl;
           if (checkpoints == 2 || checkpoints == 0) continue; // if no or both checkpoints are passed, skip
-          //std::cout << "pass" << std::endl;
 
-          if (inext == jnext || inext == j || jnext == i) continue;
-          //if (check_order(i,inext,j,jnext) == 2 || check_order(i,inext,j,jnext) == 0) continue;
+          // check the distance
           if (dist_rsq(i,inext) >= cutsq) continue;
           if (dist_rsq(j,jnext) >= cutsq) continue;
           // modification
           if (dist_rsq(i,j) >= cutsq) continue;
           if (dist_rsq(inext,jnext) >= cutsq) continue;
-          //if (dist_rsq(i,jnext) >= cutsq) continue;
-          //if (dist_rsq(j,inext) >= cutsq) continue;
 
           // if angles are enabled:
           // find other atoms i,inext,j,jnext are in angles with
@@ -558,7 +547,6 @@ void FixBondSwapSingle::post_integrate()
   // on atom j: bond j-jnext changes to j-i
   // on atom inext: bond inext-i changes to inext-jnext
   // on atom jnext: bond jnext-j changes to jnext-inext
-  //std::cout << "Swapped done, i: " << tag[i] << ", inext: " << tag[inext] << ", j:" << tag[j] << ", jnext:" << tag[jnext] << std::endl;
   for (ibond = 0; ibond < num_bond[i]; ibond++)
     if (bond_atom[i][ibond] == tag[inext]) bond_atom[i][ibond] = tag[j];
   for (jbond = 0; jbond < num_bond[j]; jbond++)
@@ -823,64 +811,6 @@ double FixBondSwapSingle::angle_eng(int atype, int i, int j, int k)
   if (i == -1 || k == -1) return 0.0;
   return force->angle->single(atype,i,j,k);
 }
-
-/* ----------------------------------------------------------------------
-   check the order of i,inext,j,jnext
- ---------------------------------------------------------------------- */
-/*
-int FixBondSwapSingle::check_order(int i, int inext, int j, int jnext)
-{
-  tagint *tag = atom->tag;
-  tagint itag,inexttag,jtag,jnexttag,node,localnode,tag_tmp;
-  tagint **bond_atom = atom->bond_atom;
-  int *num_bond = atom->num_bond;
-  int ii, ibond, checkpoints;
-  int edge;
-  bool *visited = new bool[atom->natoms];
-  for (ii = 0; ii < atom->natoms; ii++)
-      visited[ii] = false;
-
-  std::stack<int> stack;
-
-  itag = tag[i];
-  inexttag = tag[i];
-  jtag = tag[j];
-  jnexttag = tag[jnext];
-
-  visited[itag] = true;
-  stack.push(itag);
-
-  checkpoints = 0;
-  while (!stack.empty())
-  {
-    node = stack.top(); // global id of the node
-    localnode = atom->map(node); // map to local id
-    stack.pop();
-
-    if (!visited[node])
-    {
-        visited[node] = true;
-        if (localnode == inext || localnode == jnext) checkpoints += 1;
-        if (localnode == j) break;
-    }
-
-    edge = 0;
-    for (ibond = 0; ibond < num_bond[localnode]; ++ibond)
-    {
-      tag_tmp = bond_atom[localnode][ibond];
-
-      if (!visited[tag_tmp])
-      {
-          stack.push(tag_tmp);
-          edge += 1;
-      }
-    }
-    if (edge == 0)
-        checkpoints = 0;
-  }
-  return checkpoints;
-}
-*/
 
 /* ----------------------------------------------------------------------
    return bond swapping stats
